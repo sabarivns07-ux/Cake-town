@@ -1,0 +1,40 @@
+
+<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CAKE TOWN Admin - Stage 7</title>
+<style>
+body{font-family:Arial;background:#f6f7fb;margin:0}.wrap{max-width:900px;margin:auto;padding:16px}
+h1{text-align:center;color:#d63384}.card{background:#fff;border-radius:14px;padding:14px;margin:10px 0;box-shadow:0 2px 8px #ddd}
+input,button{padding:11px;border-radius:8px;border:1px solid #ddd;margin:4px;box-sizing:border-box}
+button{background:#d63384;color:white;border:0}.danger{background:#777}.new{border:3px solid #d63384}
+.hidden{display:none}.top{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.badge{padding:5px 9px;border-radius:15px;background:#eee}
+</style></head><body><div class="wrap">
+<h1>🍰 CAKE TOWN Admin</h1>
+<div id="login" class="card"><h3>Admin Login</h3><input id="u" value="Cake Town" placeholder="Username"><input id="p" type="password" value="mohan" placeholder="Password"><button onclick="login()">Login</button><div id="le"></div></div>
+<div id="dash" class="hidden">
+<div class="card top"><b>🔔 New Orders: <span id="count">0</span></b><button onclick="enableNotifications()">Enable Browser Notification</button><button onclick="testSound()">🔊 Test Sound</button><button class="danger" onclick="logout()">Logout</button></div>
+<div id="orders"></div>
+</div>
+<script>
+let lastId=0, audioCtx=null, known=new Set();
+const labels={NEW:"🆕 New",ACCEPTED:"✅ Accepted",PREPARING:"👨‍🍳 Preparing",READY:"🎂 Ready",DELIVERED:"🚚 Delivered",CANCELLED:"❌ Cancelled"};
+function beep(){
+ try{audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();let o=audioCtx.createOscillator(),g=audioCtx.createGain();o.frequency.value=880;o.connect(g);g.connect(audioCtx.destination);g.gain.value=.15;o.start();o.stop(audioCtx.currentTime+.35)}catch(e){}
+}
+function testSound(){beep()}
+async function enableNotifications(){if("Notification" in window){let p=await Notification.requestPermission();if(p==="granted")new Notification("CAKE TOWN",{body:"Notifications enabled"});}}
+function notify(o){beep();if("Notification" in window&&Notification.permission==="granted")new Notification("🍰 New CAKE TOWN Order #"+o.id,{body:"Table "+o.table_no+" • "+o.customer_name+" • ₹"+o.total});}
+async function login(){let r=await fetch("/api/admin/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:u.value,password:p.value})});if(r.ok){loginBox(false);load(true)}else le.textContent="Invalid username or password"}
+function loginBox(x){login.classList.toggle("hidden",!x);dash.classList.toggle("hidden",x)}
+async function logout(){await fetch("/api/admin/logout",{method:"POST"});location.reload()}
+async function load(first=false){let r=await fetch("/api/orders");if(!r.ok)return;let a=await r.json();document.getElementById("count").textContent=a.filter(x=>x.status==="NEW").length;
+if(!first){for(let o of a){if(o.status==="NEW"&&!known.has(o.id)){notify(o);break}}}
+known=new Set(a.map(x=>x.id));orders.innerHTML=a.map(o=>`<div class="card ${o.status==="NEW"?"new":""}">
+<b>Order #${o.id}</b> <span class="badge">${labels[o.status]}</span><br>
+🪑 Table: ${o.table_no}<br>👤 ${o.customer_name}<br>📞 ${o.phone}<br>💰 ₹${o.total}<br>
+📦 ${o.items}<br>
+<select onchange="setStatus(${o.id},this.value)">
+${Object.keys(labels).map(s=>`<option ${s===o.status?"selected":""} value="${s}">${labels[s]}</option>`).join("")}</select></div>`).join("")}
+async function setStatus(id,s){await fetch("/api/orders/"+id+"/status",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({status:s})});load(true)}
+setInterval(()=>load(false),2500);
+fetch("/api/admin/check").then(r=>r.json()).then(x=>{if(x.logged_in){loginBox(false);load(true)}})
+</script></body></html>
